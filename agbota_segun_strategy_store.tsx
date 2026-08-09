@@ -5,7 +5,7 @@ import {
   Mic, Search, FileText, ChevronRight, Lock, Loader2, Send,
   ShieldCheck, ArrowRight, Play, DollarSign, Clock, Check, AlertCircle,
   HelpCircle, BookOpen, Layers, CheckSquare, XCircle, Mail, Key, Shield,
-  Share2, Award, Star, Compass, Download, RefreshCw, SendHorizonal, Paperclip
+  Share2, Award, Star, Compass, Download, RefreshCw, SendHorizonal, Paperclip, CheckCheck
 } from 'lucide-react';
 
 const ADMIN_EMAIL = 'agbotasegun.outreach@gmail.com';
@@ -95,69 +95,91 @@ const Modal = ({ isOpen, onClose, title, message }) => {
 };
 
 export default function App() {
-  const [sessionLoading, setSessionLoading] = useState(true);
-  const [users, setUsers] = useState(() => {
-    try {
-      const saved = localStorage.getItem('as_db_users_v5');
-      return saved ? JSON.parse(saved) : [];
-    } catch { return []; }
-  });
-
   const [currentUser, setCurrentUser] = useState(() => {
     try {
-      const savedSession = localStorage.getItem('as_current_session_v5');
-      return savedSession ? JSON.parse(savedSession) : null;
-    } catch { return null; }
+      const saved = localStorage.getItem('as_session_v7');
+      return saved ? JSON.parse(saved) : null;
+    } catch {
+      return null;
+    }
   });
-
-  const isAdmin = currentUser?.role === 'OWNER';
 
   const [currentView, setCurrentView] = useState('home');
   const [selectedProduct, setSelectedProduct] = useState(null);
 
-  const [products, setProducts] = useState(() => {
-    try { return JSON.parse(localStorage.getItem('as_db_products_v5')) || SEED_PRODUCTS; } catch { return SEED_PRODUCTS; }
-  });
-
+  const [products, setProducts] = useState(SEED_PRODUCTS);
+  
   const [orders, setOrders] = useState(() => {
-    try { return JSON.parse(localStorage.getItem('as_db_orders_v5')) || []; } catch { return []; }
+    try {
+      const saved = localStorage.getItem('as_orders_v7');
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
   });
 
   const [chats, setChats] = useState(() => {
-    try { return JSON.parse(localStorage.getItem('as_db_chats_v5')) || []; } catch { return []; }
+    try {
+      const saved = localStorage.getItem('as_chats_v7');
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
   });
 
   const [messages, setMessages] = useState(() => {
-    try { return JSON.parse(localStorage.getItem('as_db_messages_v5')) || []; } catch { return []; }
+    try {
+      const saved = localStorage.getItem('as_messages_v7');
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
   });
 
   const [modalConfig, setModalConfig] = useState({ isOpen: false, title: '', message: '' });
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const showAlert = (title, message) => setModalConfig({ isOpen: true, title, message });
 
-  // Persistent session simulation
   useEffect(() => {
-    const timer = setTimeout(() => {
-      setSessionLoading(false);
-    }, 300);
-    return () => clearTimeout(timer);
-  }, []);
+    try {
+      localStorage.setItem('as_orders_v7', JSON.stringify(orders));
+    } catch (e) {
+      console.error(e);
+    }
+  }, [orders]);
 
-  useEffect(() => { localStorage.setItem('as_db_users_v5', JSON.stringify(users)); }, [users]);
-  useEffect(() => { 
-    if (currentUser) {
-      localStorage.setItem('as_current_session_v5', JSON.stringify(currentUser));
-    } else {
-      localStorage.removeItem('as_current_session_v5');
+  useEffect(() => {
+    try {
+      localStorage.setItem('as_chats_v7', JSON.stringify(chats));
+    } catch (e) {
+      console.error(e);
+    }
+  }, [chats]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('as_messages_v7', JSON.stringify(messages));
+    } catch (e) {
+      console.error(e);
+    }
+  }, [messages]);
+
+  useEffect(() => {
+    try {
+      if (currentUser) {
+        localStorage.setItem('as_session_v7', JSON.stringify(currentUser));
+      } else {
+        localStorage.removeItem('as_session_v7');
+      }
+    } catch (e) {
+      console.error(e);
     }
   }, [currentUser]);
-  useEffect(() => { localStorage.setItem('as_db_products_v5', JSON.stringify(products)); }, [products]);
-  useEffect(() => { localStorage.setItem('as_db_orders_v5', JSON.stringify(orders)); }, [orders]);
-  useEffect(() => { localStorage.setItem('as_db_chats_v5', JSON.stringify(chats)); }, [chats]);
-  useEffect(() => { localStorage.setItem('as_db_messages_v5', JSON.stringify(messages)); }, [messages]);
 
-  const myOrders = orders.filter(o => o.streamerEmail === currentUser?.email);
-  const myChats = chats.filter(c => c.streamerEmail === currentUser?.email);
+  const isAdmin = currentUser?.role === 'OWNER' || currentUser?.email?.toLowerCase() === ADMIN_EMAIL.toLowerCase();
+
+  const myOrders = orders.filter(o => o.streamerEmail?.toLowerCase() === currentUser?.email?.toLowerCase());
+  const myChats = chats.filter(c => c.streamerEmail?.toLowerCase() === currentUser?.email?.toLowerCase());
 
   const unreadCount = isAdmin
     ? chats.reduce((acc, c) => acc + (c.unreadAdmin || 0), 0)
@@ -177,26 +199,30 @@ export default function App() {
     window.scrollTo(0, 0);
   };
 
-  const ensureChatExists = (email) => {
+  const ensureChatExists = (email, name = '') => {
     if (!email || email.toLowerCase() === ADMIN_EMAIL.toLowerCase()) return;
-    const existing = chats.find(c => c.streamerEmail.toLowerCase() === email.toLowerCase());
-    if (!existing) {
-      const newChat = {
-        id: 'chat_' + email.toLowerCase(),
+    const chatId = 'chat_' + email.toLowerCase().replace(/[^a-z0-9]/g, '_');
+    
+    setChats(prev => {
+      const exists = prev.find(c => c.id === chatId);
+      if (exists) return prev;
+      return [...prev, {
+        id: chatId,
         streamerEmail: email.toLowerCase(),
+        streamerName: name || email.split('@')[0],
         lastMessage: 'Chat initialized with Agbota Segun',
         timestamp: Date.now(),
         unreadAdmin: 1,
         unreadStreamer: 0,
-        paymentStatus: 'None' // None, Awaiting Confirmation, Confirmed, Rejected
-      };
-      setChats(prev => [newChat, ...prev]);
-    }
+        paymentStatus: 'None'
+      }];
+    });
+    return chatId;
   };
 
   const AuthScreen = () => {
-    const [authType, setAuthType] = useState('streamer'); // 'streamer' or 'owner'
-    const [mode, setMode] = useState('login'); // 'login' or 'register'
+    const [authType, setAuthType] = useState('streamer');
+    const [mode, setMode] = useState('login');
     const [name, setName] = useState('');
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
@@ -206,7 +232,7 @@ export default function App() {
       const cleanEmail = email.trim().toLowerCase();
       
       if (cleanEmail === ADMIN_EMAIL.toLowerCase() && password === ADMIN_PASSWORD) {
-        const ownerUser = { email: ADMIN_EMAIL, role: 'OWNER', name: 'Agbota Segun' };
+        const ownerUser = { uid: 'owner_uid', email: ADMIN_EMAIL, role: 'OWNER', name: 'Agbota Segun' };
         setCurrentUser(ownerUser);
         showAlert("Success", "Owner authentication successful. Welcome to the Admin Portal.");
         navigateTo('admin');
@@ -221,14 +247,14 @@ export default function App() {
       const cleanEmail = email.trim().toLowerCase();
       if (!cleanEmail || !password) return showAlert("Error", "Please provide both email and password.");
 
-      const found = users.find(u => u.email === cleanEmail);
-      if (!found || found.password !== password) {
-        return showAlert("Authentication Failed", "Incorrect email or password.");
-      }
-
-      const streamerSession = { email: cleanEmail, role: 'STREAMER', name: found.name || cleanEmail.split('@')[0] };
+      const streamerSession = { 
+        uid: 'user_' + Date.now(), 
+        email: cleanEmail, 
+        role: 'STREAMER', 
+        name: cleanEmail.split('@')[0] 
+      };
       setCurrentUser(streamerSession);
-      ensureChatExists(cleanEmail);
+      ensureChatExists(cleanEmail, streamerSession.name);
       showAlert("Success", "Successfully logged in as Streamer.");
       navigateTo('dashboard');
     };
@@ -246,17 +272,14 @@ export default function App() {
         return showAlert("Error", "Owner email cannot be registered as a streamer account. Please use Owner Login.");
       }
 
-      const existing = users.find(u => u.email === cleanEmail);
-      if (existing) {
-        return showAlert("Account Exists", "An account with this email already exists. Please log in.");
-      }
-
-      const newUser = { name: cleanName, email: cleanEmail, password: password, role: 'STREAMER' };
-      setUsers(prev => [...prev, newUser]);
-
-      const streamerSession = { email: cleanEmail, role: 'STREAMER', name: cleanName };
+      const streamerSession = { 
+        uid: 'user_' + Date.now(), 
+        email: cleanEmail, 
+        role: 'STREAMER', 
+        name: cleanName 
+      };
       setCurrentUser(streamerSession);
-      ensureChatExists(cleanEmail);
+      ensureChatExists(cleanEmail, cleanName);
 
       showAlert("Account Created", "Account created successfully! Automatically logged in.");
       navigateTo('dashboard');
@@ -443,7 +466,11 @@ export default function App() {
                     <User size={16} /> Dashboard
                   </button>
                 )}
-                <button onClick={() => { setCurrentUser(null); localStorage.removeItem('as_current_session_v5'); navigateTo('home'); }} className="text-slate-400 hover:text-white p-2 rounded-xl hover:bg-slate-900 transition-colors" title="Log Out">
+                <button onClick={() => { 
+                  setCurrentUser(null); 
+                  localStorage.removeItem('as_session_v7'); 
+                  navigateTo('home'); 
+                }} className="text-slate-400 hover:text-white p-2 rounded-xl hover:bg-slate-900 transition-colors" title="Log Out">
                   <LogOut size={18} />
                 </button>
               </div>
@@ -482,7 +509,12 @@ export default function App() {
               ) : (
                 <button onClick={() => navigateTo('dashboard')} className="block w-full text-left px-4 py-3 rounded-xl text-indigo-400 bg-slate-800 font-medium">My Dashboard</button>
               )}
-              <button onClick={() => { setCurrentUser(null); localStorage.removeItem('as_current_session_v5'); setMobileMenuOpen(false); navigateTo('home'); }} className="block w-full text-left px-4 py-3 rounded-xl text-slate-400 hover:bg-slate-800 font-medium">Log Out</button>
+              <button onClick={() => { 
+                setCurrentUser(null); 
+                localStorage.removeItem('as_session_v7'); 
+                setMobileMenuOpen(false); 
+                navigateTo('home'); 
+              }} className="block w-full text-left px-4 py-3 rounded-xl text-slate-400 hover:bg-slate-800 font-medium">Log Out</button>
             </div>
           ) : (
             <div className="pt-4 border-t border-slate-800">
@@ -513,8 +545,9 @@ export default function App() {
               Explore Strategies <ArrowRight size={18} />
             </button>
             <button onClick={() => {
-              if (!currentUser) navigateTo('auth');
-              else navigateTo('messages');
+              if (!currentUser) { navigateTo('auth'); return; }
+              ensureChatExists(currentUser.email, currentUser.name);
+              navigateTo('messages');
             }} className="w-full sm:w-auto bg-slate-900 hover:bg-slate-800 text-white font-semibold px-8 py-4 rounded-2xl border border-slate-700 transition-all flex items-center justify-center gap-3 text-base">
               <MessageCircle size={18} className="text-indigo-400" /> Message Agbota Segun
             </button>
@@ -658,17 +691,21 @@ export default function App() {
         navigateTo('auth');
         return;
       }
-      ensureChatExists(currentUser.email);
-      const orderMsg = {
-        id: 'msg_' + Date.now(),
-        chatId: 'chat_' + currentUser.email.toLowerCase(),
+      const chatId = ensureChatExists(currentUser.email, currentUser.name);
+      
+      const msgId = 'msg_' + Date.now() + '_' + Math.random().toString(36).substring(2,7);
+      const newMsg = {
+        id: msgId,
+        chatId: chatId,
         sender: currentUser.email,
         text: `Hello Agbota Segun, I am interested in purchasing [ ${selectedProduct.name} ] for $${selectedProduct.price}. Please provide Bitcoin BTC payment instructions.`,
         timestamp: Date.now(),
         type: 'text'
       };
-      setMessages(prev => [...prev, orderMsg]);
-      setChats(prev => prev.map(c => c.streamerEmail.toLowerCase() === currentUser.email.toLowerCase() ? { ...c, lastMessage: `Inquiry: ${selectedProduct.name}`, timestamp: Date.now(), unreadAdmin: (c.unreadAdmin || 0) + 1 } : c));
+
+      setMessages(prev => [...prev, newMsg]);
+      setChats(prev => prev.map(c => c.id === chatId ? { ...c, lastMessage: `Inquiry: ${selectedProduct.name}`, timestamp: Date.now(), unreadAdmin: (c.unreadAdmin || 0) + 1 } : c));
+
       navigateTo('messages');
     };
 
@@ -786,9 +823,26 @@ export default function App() {
       );
     }
 
-    const [selectedChatId, setSelectedChatId] = useState(isAdmin ? (chats[0]?.id || '') : ('chat_' + currentUser.email.toLowerCase()));
+    const defaultChatId = isAdmin ? (chats[0]?.id || '') : ('chat_' + currentUser.email.toLowerCase().replace(/[^a-z0-9]/g, '_'));
+    const [selectedChatId, setSelectedChatId] = useState(defaultChatId);
     const [inputText, setInputText] = useState('');
     const chatScrollRef = useRef(null);
+
+    useEffect(() => {
+      if (isAdmin && chats.length > 0 && !chats.find(c => c.id === selectedChatId)) {
+        setSelectedChatId(chats[0].id);
+      }
+    }, [chats, isAdmin, selectedChatId]);
+
+    useEffect(() => {
+      if (!selectedChatId) return;
+      setChats(prev => prev.map(c => {
+        if (c.id === selectedChatId) {
+          return isAdmin ? { ...c, unreadAdmin: 0 } : { ...c, unreadStreamer: 0 };
+        }
+        return c;
+      }));
+    }, [selectedChatId, isAdmin]);
 
     useEffect(() => {
       if (chatScrollRef.current) {
@@ -802,12 +856,16 @@ export default function App() {
     const handleSendMessage = (e, customType = 'text', customPayload = null, fileName = '') => {
       if (e) e.preventDefault();
       if (!inputText.trim() && customType === 'text') return;
+      if (!selectedChatId) return;
 
+      const msgId = 'msg_' + Date.now() + '_' + Math.random().toString(36).substring(2,7);
+      const textContent = customType === 'text' ? inputText : (customType === 'image' ? '[Payment Receipt / Image]' : customType === 'file' ? `[File: ${fileName}]` : '[Voice Message]');
+      
       const newMsg = {
-        id: 'msg_' + Date.now(),
+        id: msgId,
         chatId: selectedChatId,
         sender: currentUser.email,
-        text: customType === 'text' ? inputText : (customType === 'image' ? '[Payment Receipt / Image]' : customType === 'file' ? `[File: ${fileName}]` : '[Voice Message]'),
+        text: textContent,
         fileUrl: customPayload,
         fileName: fileName,
         timestamp: Date.now(),
@@ -815,20 +873,21 @@ export default function App() {
       };
 
       setMessages(prev => [...prev, newMsg]);
-      setInputText('');
 
       setChats(prev => prev.map(c => {
         if (c.id === selectedChatId) {
           return {
             ...c,
-            lastMessage: newMsg.text,
+            lastMessage: textContent,
             timestamp: Date.now(),
-            unreadAdmin: isAdmin ? 0 : (c.unreadAdmin || 0) + 1,
-            unreadStreamer: isAdmin ? (c.unreadStreamer || 0) + 1 : 0
+            unreadAdmin: isAdmin ? 0 : ((c.unreadAdmin || 0) + 1),
+            unreadStreamer: isAdmin ? ((c.unreadStreamer || 0) + 1) : 0
           };
         }
         return c;
       }));
+
+      setInputText('');
     };
 
     const handleFileUpload = (e, type) => {
@@ -843,82 +902,60 @@ export default function App() {
       if (!activeChat) return;
       const streamerEmail = activeChat.streamerEmail;
 
-      // Update chat payment status to Awaiting Confirmation
       setChats(prev => prev.map(c => c.id === selectedChatId ? { ...c, paymentStatus: 'Awaiting Confirmation' } : c));
 
-      // Check if order already exists in awaiting or review
-      const existingOrder = orders.find(o => o.streamerEmail.toLowerCase() === streamerEmail.toLowerCase() && o.paymentStatus === 'Awaiting Confirmation');
-      
-      if (!existingOrder) {
-        const newOrder = {
-          id: Math.floor(1000 + Math.random() * 9000).toString(),
-          streamerEmail: streamerEmail,
-          productName: 'Twitch Growth Strategy Blueprint',
-          price: 30,
-          paymentStatus: 'Awaiting Confirmation',
-          status: 'Payment Review',
-          timestamp: Date.now(),
-          chatId: selectedChatId
-        };
-        setOrders(prev => [newOrder, ...prev]);
-      }
+      setOrders(prev => {
+        const existing = prev.find(o => o.streamerEmail?.toLowerCase() === streamerEmail.toLowerCase());
+        if (existing) {
+          return prev.map(o => o.id === existing.id ? { ...o, paymentStatus: 'Awaiting Confirmation', status: 'Payment Review' } : o);
+        } else {
+          return [...prev, {
+            id: Math.floor(1000 + Math.random() * 9000).toString(),
+            streamerEmail: streamerEmail,
+            productName: 'Growth Strategy Blueprint',
+            price: 30,
+            paymentStatus: 'Awaiting Confirmation',
+            status: 'Payment Review',
+            timestamp: Date.now(),
+            chatId: selectedChatId
+          }];
+        }
+      });
 
-      const notifyMsg = {
-        id: 'msg_' + Date.now(),
+      const msgId = 'msg_' + Date.now();
+      const newMsg = {
+        id: msgId,
         chatId: selectedChatId,
         sender: currentUser.email,
-        text: `[System Notice]: Streamer clicked "Payment Made". Payment is now Awaiting Confirmation by Agbota Segun.`,
+        text: `🔔 [PAYMENT MADE DOORBELL]: Streamer has submitted payment notification. Please review receipt and confirm.`,
         timestamp: Date.now(),
         type: 'system'
       };
-      setMessages(prev => [...prev, notifyMsg]);
-      showAlert("Payment Submitted", "Your payment notification has been sent to Agbota Segun. Please ensure your payment receipt is attached in chat.");
+      setMessages(prev => [...prev, newMsg]);
+
+      showAlert("Payment Submitted", "Your payment notification has been sent instantly to Agbota Segun.");
     };
 
     const handleConfirmPayment = () => {
       if (!isAdmin || !activeChat) return;
       const streamerEmail = activeChat.streamerEmail;
 
-      // Check if already confirmed
-      if (activeChat.paymentStatus === 'Confirmed') {
-        showAlert("Already Confirmed", "Payment has already been confirmed for this conversation.");
-        return;
-      }
-
-      // Update chat status
       setChats(prev => prev.map(c => c.id === selectedChatId ? { ...c, paymentStatus: 'Confirmed' } : c));
 
-      // Update or create order
-      const targetOrder = orders.find(o => o.streamerEmail.toLowerCase() === streamerEmail.toLowerCase());
-      const orderId = targetOrder ? targetOrder.id : Math.floor(1000 + Math.random() * 9000).toString();
+      setOrders(prev => prev.map(o => o.streamerEmail?.toLowerCase() === streamerEmail.toLowerCase() ? { ...o, paymentStatus: 'Confirmed', status: 'In Progress' } : o));
 
-      if (targetOrder) {
-        setOrders(prev => prev.map(o => o.id === targetOrder.id ? { ...o, paymentStatus: 'Confirmed', status: 'In Progress' } : o));
-      } else {
-        const newConfirmedOrder = {
-          id: orderId,
-          streamerEmail: streamerEmail,
-          productName: 'Growth Strategy Blueprint',
-          price: 30,
-          paymentStatus: 'Confirmed',
-          status: 'In Progress',
-          timestamp: Date.now(),
-          chatId: selectedChatId
-        };
-        setOrders(prev => [newConfirmedOrder, ...prev]);
-      }
-
-      // Send system confirmation message
-      const confirmMsg = {
-        id: 'msg_' + Date.now(),
+      const msgId = 'msg_' + Date.now();
+      const newMsg = {
+        id: msgId,
         chatId: selectedChatId,
         sender: ADMIN_EMAIL,
-        text: `✅ PAYMENT CONFIRMED\nAgbota Segun has confirmed your payment for Order #${orderId}. Your strategy blueprint is now In Progress and being prepared.`,
+        text: `✅ PAYMENT CONFIRMED\nAgbota Segun has confirmed your payment! Your strategy blueprint is now In Progress and being delivered.`,
         timestamp: Date.now(),
         type: 'system'
       };
-      setMessages(prev => [...prev, confirmMsg]);
-      showAlert("Payment Confirmed", `Payment confirmed successfully! Order #${orderId} marked as In Progress.`);
+      setMessages(prev => [...prev, newMsg]);
+
+      showAlert("Payment Confirmed", "Payment confirmed successfully in real-time.");
     };
 
     return (
@@ -929,7 +966,7 @@ export default function App() {
               <div className="p-4 border-b border-slate-800 flex justify-between items-center">
                 <div>
                   <h3 className="font-bold text-white text-sm">Customer Conversations</h3>
-                  <p className="text-xs text-slate-400">Direct human chat inbox</p>
+                  <p className="text-xs text-slate-400">Live storage sync</p>
                 </div>
                 {chats.some(c => c.paymentStatus === 'Awaiting Confirmation') && (
                   <span className="bg-red-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full animate-pulse">🔔 Payment</span>
@@ -947,7 +984,7 @@ export default function App() {
                     >
                       <div className="flex justify-between items-center mb-1">
                         <span className="font-bold text-white text-xs truncate">{chat.streamerEmail}</span>
-                        {chat.paymentStatus === 'Awaiting Confirmation' && <span className="bg-amber-500 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-full">Awaiting</span>}
+                        {chat.paymentStatus === 'Awaiting Confirmation' && <span className="bg-amber-500 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-full animate-pulse">Awaiting</span>}
                       </div>
                       <p className="text-slate-400 text-xs truncate">{chat.lastMessage}</p>
                     </div>
@@ -964,7 +1001,7 @@ export default function App() {
                   {isAdmin ? `Chat with ${activeChat?.streamerEmail || 'Streamer'}` : 'Chat with Agbota Segun (Owner)'}
                 </h3>
                 <p className="text-[11px] text-emerald-400 flex items-center gap-1.5 mt-0.5">
-                  <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span> Real-time human communication
+                  <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span> Real-time storage sync active
                 </p>
               </div>
 
@@ -977,14 +1014,13 @@ export default function App() {
               )}
             </div>
 
-            {/* Admin Payment Doorbell / Alert Panel */}
             {isAdmin && activeChat?.paymentStatus === 'Awaiting Confirmation' && (
               <div className="bg-amber-950/80 border-b border-amber-500/40 p-4 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 animate-in fade-in">
                 <div>
                   <div className="flex items-center gap-2 text-amber-300 font-bold text-xs uppercase tracking-wider mb-1">
                     <AlertCircle size={16} /> 🔔 Payment Awaiting Confirmation
                   </div>
-                  <p className="text-white text-xs">Customer has submitted payment notification. Review receipt in chat below.</p>
+                  <p className="text-white text-xs">Customer has submitted payment. Review receipt in chat below.</p>
                 </div>
                 <button onClick={handleConfirmPayment} className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs px-5 py-2.5 rounded-xl shadow-lg transition-all">
                   [ CONFIRM PAYMENT ]
@@ -1000,13 +1036,13 @@ export default function App() {
 
             {!isAdmin && activeChat?.paymentStatus === 'Awaiting Confirmation' && (
               <div className="bg-amber-950/60 border-b border-amber-500/30 px-4 py-3 text-xs text-amber-300">
-                ⏳ PAYMENT AWAITING CONFIRMATION: Your payment notification has been sent to Agbota Segun. Please send your payment receipt through Chat.
+                ⏳ PAYMENT AWAITING CONFIRMATION: Agbota Segun is reviewing your payment and receipt.
               </div>
             )}
 
             {!isAdmin && activeChat?.paymentStatus === 'Confirmed' && (
               <div className="bg-emerald-950/60 border-b border-emerald-500/30 px-4 py-3 text-xs text-emerald-300 font-semibold">
-                ✅ PAYMENT CONFIRMED: Agbota Segun has confirmed your payment. Your strategy blueprint is being prepared!
+                ✅ PAYMENT CONFIRMED: Agbota Segun has confirmed your payment. Your strategy blueprint is ready!
               </div>
             )}
 
@@ -1051,7 +1087,6 @@ export default function App() {
               )}
             </div>
 
-            {/* Fully Featured Chat Composer with all media controls */}
             <div className="p-4 border-t border-slate-800 bg-slate-950/40">
               <form onSubmit={e => handleSendMessage(e, 'text')} className="flex items-center gap-2 sm:gap-3">
                 <label className="cursor-pointer bg-slate-800 hover:bg-slate-700 text-slate-300 p-2.5 rounded-xl transition-colors" title="Upload Image / Receipt">
@@ -1062,9 +1097,6 @@ export default function App() {
                   <Paperclip size={18} />
                   <input type="file" onChange={e => handleFileUpload(e, 'file')} className="hidden" />
                 </label>
-                <button type="button" onClick={() => handleSendMessage(null, 'text', null, null)} className="hidden sm:flex bg-slate-800 hover:bg-slate-700 text-slate-300 p-2.5 rounded-xl transition-colors" title="Voice Message simulation">
-                  <Mic size={18} />
-                </button>
                 <input 
                   type="text" 
                   placeholder={isAdmin ? "Type reply to streamer..." : "Type your message or attach receipt..."} 
@@ -1120,8 +1152,8 @@ export default function App() {
             <h3 className="text-3xl font-black text-amber-400 mt-2">{orders.filter(o => o.paymentStatus === 'Awaiting Confirmation').length}</h3>
           </div>
           <div className="bg-slate-900 border border-slate-800 p-6 rounded-2xl">
-            <span className="text-slate-400 text-xs font-semibold uppercase tracking-wider">Registered Streamers</span>
-            <h3 className="text-slate-300 text-3xl font-black mt-2">{users.length}</h3>
+            <span className="text-slate-400 text-xs font-semibold uppercase tracking-wider">Active Conversations</span>
+            <h3 className="text-slate-300 text-3xl font-black mt-2">{chats.length}</h3>
           </div>
         </div>
 
@@ -1161,9 +1193,11 @@ export default function App() {
                         <td className="p-4 flex items-center gap-2">
                           {order.paymentStatus !== 'Paid' && order.paymentStatus !== 'Confirmed' && (
                             <button onClick={() => {
-                              setOrders(orders.map(o => o.id === order.id ? { ...o, paymentStatus: 'Confirmed', status: 'In Progress' } : o));
-                              setChats(chats.map(c => c.streamerEmail.toLowerCase() === order.streamerEmail.toLowerCase() ? { ...c, paymentStatus: 'Confirmed' } : c));
-                              showAlert("Payment Confirmed", `Order #${order.id} has been marked as Confirmed!`);
+                              setOrders(prev => prev.map(o => o.id === order.id ? { ...o, paymentStatus: 'Confirmed', status: 'In Progress' } : o));
+                              if (order.chatId) {
+                                setChats(prev => prev.map(c => c.id === order.chatId ? { ...c, paymentStatus: 'Confirmed' } : c));
+                              }
+                              showAlert("Payment Confirmed", `Order #${order.id} marked as Confirmed!`);
                             }} className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold px-3 py-1.5 rounded-lg shadow">
                               Confirm Payment
                             </button>
@@ -1183,17 +1217,6 @@ export default function App() {
       </div>
     );
   };
-
-  if (sessionLoading) {
-    return (
-      <div className="min-h-screen bg-slate-950 flex items-center justify-center">
-        <div className="text-center space-y-4">
-          <Loader2 size={40} className="animate-spin text-indigo-500 mx-auto" />
-          <p className="text-slate-400 text-sm font-medium">Checking authentication session...</p>
-        </div>
-      </div>
-    );
-  }
 
   return (
     <div className="min-h-screen bg-slate-950 font-sans text-slate-200 flex flex-col selection:bg-indigo-500/30">
